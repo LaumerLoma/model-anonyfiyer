@@ -1,0 +1,25 @@
+[project]
+name = "telephone-onion"
+version = "0.1.0"
+description = "Obscure which AI model wrote an answer by routing it through a random circuit of lab personas"
+readme = "README.md"
+authors = [
+    { name = "LaumerLoma", email = "339369547+LaumerLoma@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "textual>=8.2.8",
+]
+
+[project.scripts]
+telephone = "telephone_onion.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.14,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
