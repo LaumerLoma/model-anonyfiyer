@@ -32,13 +32,14 @@ class Backend(Protocol):
 ROUTERS = {
     "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
     "gateway": ("https://ai-gateway.vercel.sh/v1", "AI_GATEWAY_API_KEY"),
+    "lmstudio": ("http://localhost:1234/v1", None),  # local, no key
 }
 
 
 class RouterBackend:
     def __init__(self, router: str, timeout: float = 120.0):
         base_url, env = ROUTERS[router]
-        key = os.environ.get(env)
+        key = os.environ.get(env) if env else "local"
         if not key:
             raise RuntimeError(f"{env} is not set (needed for --backend {router})")
         self.name = router

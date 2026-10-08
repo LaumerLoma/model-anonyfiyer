@@ -9,11 +9,11 @@ from dataclasses import replace
 
 from .attack import JudgeAttacker, MarkerAttacker, run_bench
 from .backends import MockBackend, RouterBackend
-from .nodes import DEFAULT_LABS, Lab, lab_by_key
+from .nodes import DEFAULT_LABS, LOCAL_LABS, Lab, lab_by_key
 
 
-def _labs(overrides: list[str]) -> tuple[Lab, ...]:
-    labs = list(DEFAULT_LABS)
+def _labs(overrides: list[str], base: tuple[Lab, ...]) -> tuple[Lab, ...]:
+    labs = list(base)
     for o in overrides:
         key, slug = o.split("=", 1)
         labs = [replace(l, model=slug) if l.key == key else l for l in labs]
@@ -28,7 +28,7 @@ def _backend(args):
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="telephone", description="Obscure which model wrote an answer.")
-    p.add_argument("--backend", choices=["mock", "openrouter", "gateway"], default="mock")
+    p.add_argument("--backend", choices=["mock", "openrouter", "gateway", "lmstudio"], default="mock")
     p.add_argument("--model", action="append", default=[], metavar="LAB=SLUG",
                    help="override a lab's model slug, e.g. openai=openai/gpt-5-mini")
     p.add_argument("--seed", type=int, default=None)
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--judge", default=None, help="lab key for the LLM judge (real backends)")
 
     args = p.parse_args(argv)
-    labs = _labs(args.model)
+    labs = _labs(args.model, LOCAL_LABS if args.backend == "lmstudio" else DEFAULT_LABS)
 
     if args.cmd in (None, "tui"):
         from .tui import TelephoneApp

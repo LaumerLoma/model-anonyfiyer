@@ -31,3 +31,15 @@ def lab_by_key(labs: tuple[Lab, ...], key: str) -> Lab:
         if lab.key == key:
             return lab
     raise KeyError(f"unknown lab {key!r}; choose from {[l.key for l in labs]}")
+
+
+# Small local models (LM Studio), one per lab. Used by --backend lmstudio and experiments/.
+LOCAL_LABS: tuple[Lab, ...] = (
+    Lab("meta", "Meta", "llama-3.2-3b-instruct", ("Meta AI", "Meta", "Llama", "LLaMA")),
+    Lab("google", "Google", "google/gemma-3-4b",
+        ("Google DeepMind", "DeepMind", "Google", "Gemma", "Gemini")),
+    Lab("alibaba", "Alibaba", "qwen/qwen3-4b-2507", ("Alibaba Cloud", "Alibaba", "Qwen", "Tongyi")),
+    Lab("microsoft", "Microsoft", "phi-4-mini-instruct",
+        ("Microsoft", "Phi-4", "Phi-3", "Phi")),
+    Lab("mistral", "Mistral AI", "ministral-3-3b-instruct-2512", ("Mistral AI", "Mistral", "Ministral")),
+)
