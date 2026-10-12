@@ -1,0 +1,401 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=22mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs,tabularx,amsmath}
+\usepackage{xcolor}
+\definecolor{accent}{HTML}{2459A8}
+\usepackage[colorlinks=true,linkcolor=accent,urlcolor=accent]{hyperref}
+% Keep saved PDF descriptive properties and provenance fields blank.
+\hypersetup{pdftitle={},pdfauthor={},pdfsubject={},pdfkeywords={},pdfcreator={},pdfproducer={}}
+\ifdefined\pdfinfoomitdate\pdfinfoomitdate=1\fi
+\ifdefined\pdftrailerid\pdftrailerid{}\fi
+\ifdefined\pdfsuppressptexinfo\pdfsuppressptexinfo=15\fi
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlength{\tabcolsep}{5pt}
+\newcommand{\cond}[1]{\texttt{#1}}
+\title{\textbf{Model anonymization through rewriting}\\[4pt]\large Attribution experiment v2: results}
+\author{}
+\date{October 9, 2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+\noindent
+Across 160 prompts and five local language models, the strongest tested adaptive
+attacker identifies the source model in 92.1\% of unprotected answers. Three
+rewrites after persona framing reduce this to 30.5\% (95\% CI 27.5--33.5\%),
+while three plain rewrites reach 29.8\% (26.8--32.6\%). Chance is 20\%.
+The paired comparison finds no clear difference between the two three-hop
+chains, and plain rewrites retain higher embedding similarity and longer
+answers. Higher rewrite temperature helps in the one-hop comparison. Neither
+a stronger fine-tuned classifier nor a benefit from a fixed rewriter is
+established by the specified tests. These results support substantial
+reduction in attribution, with residual leakage and unmeasured task correctness.
+\end{abstract}
+
+\section{Scope and experimental setup}
+This report records the completed v2 run from
+\path{experiments/data/results_v2.json}, using the design and hypothesis rules
+in \path{experiments/PROTOCOL_v2.md}. It reports saved results without rerunning
+collection or model training. The older v1 report is a separate experiment;
+\cond{z\_mode} and \cond{para\_1} were not expanded or re-evaluated in v2.
+
+The study contains 800 units: 160 prompts times five choices of source model
+$Z$. The original 80 prompts are supplemented with 80 prompts across the same
+seven task types. Each model answers every prompt. The candidate models are
+Meta's Llama 3.2 3B, Google's Gemma 3 4B, Alibaba's Qwen3 4B 2507,
+Microsoft's Phi-4-mini, and Mistral's Ministral 3 3B, run locally in LM Studio.
+
+A circuit draws three distinct relay labs uniformly without replacement; $Z$'s
+lab can also be a relay. Rewrites run in exit, middle, guard order. Paired
+\cond{nodes\_k} and \cond{plain\_k} conditions use the same circuit for a unit.
+Sampling uses temperature 0.7 and a 400-token output limit, except the hot
+one-hop rewrite, which uses temperature 1.2. All evaluated final texts pass
+through the same lab-name and self-identification scrubber.
+
+The completed cache contains 8,880 unique calls, including reused v1 calls and
+v1-only conditions. None of the cached outputs is empty. The v2 analysis log
+ends with a successful results write after 26,824 seconds (about 7.45 hours).
+
+\clearpage
+\section{Conditions and attackers}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Condition & Text observed by the attacker \\
+\midrule
+\cond{direct} & $Z$ answers the plain prompt. \\
+\cond{persona\_fwd} & $Z$ answers the nested guard/middle/exit persona prompt. \\
+\cond{nodes\_1..3} & Persona answer, then one, two, or three independent model rewrites. \\
+\cond{plain\_1..3} & Plain answer, then the same one, two, or three relay models. \\
+\cond{fixed\_1} & Plain answer rewritten once by Meta for every unit. \\
+\cond{plain\_1\_hot} & Same exit relay as \cond{plain\_1}, at temperature 1.2. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{A1} uses TF-IDF character 2--5-grams and word 1--2-grams with logistic
+regression. \textbf{A2} uses nomic-embed-text-v1.5 embeddings with logistic
+regression. Both select regularization through internal cross-validation.
+\textbf{A3} fine-tunes ModernBERT-base with a five-class head for four epochs,
+learning rate $3\times10^{-5}$, weight decay 0.01, batch size 16, maximum
+length 256 tokens, 10\% linear warmup, and seed 0. It uses no test-fold tuning
+or early stopping.
+
+Adaptive attackers train and test within the same condition. Static attackers
+train only on \cond{direct}. Outer evaluation uses five folds grouped by
+prompt: each fold trains on 128 prompts (640 texts) and tests on 32 prompts
+(160 texts), with no prompt shared across outer train and test sets.
+Accuracy CIs use 2,000 bootstrap resamples over prompts. Condition differences
+use paired prompt bootstraps.
+
+The best attacker for a condition is the one with the highest observed
+adaptive accuracy. Paired condition tests use a single attacker on both sides,
+selected by the highest mean adaptive accuracy over the pair. These selections
+are part of the stated analysis rule; intervals are not adjusted for attacker
+selection or multiple hypothesis testing.
+
+\section{Adaptive attribution accuracy}
+Values are percentages, with 95\% CIs in brackets. Lower accuracy means less
+successful source identification. Chance is 20\%. Bold identifies the
+strongest tested adaptive attacker for each condition.
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Condition & A1: TF-IDF & A2: embeddings & A3: ModernBERT \\
+\midrule
+\texttt{direct} & \textbf{92.1 [90.0, 94.1]} & 61.1 [57.9, 64.4] & 88.4 [85.8, 90.8] \\
+\texttt{persona\_fwd} & 84.6 [81.9, 87.2] & 59.8 [56.4, 63.2] & \textbf{85.5 [82.9, 88.1]} \\
+\texttt{nodes\_1} & 39.0 [35.8, 42.2] & 34.5 [31.8, 37.2] & \textbf{40.4 [37.2, 43.2]} \\
+\texttt{nodes\_2} & 35.0 [32.5, 37.5] & 29.5 [26.9, 32.0] & \textbf{35.6 [32.9, 38.4]} \\
+\texttt{nodes\_3} & \textbf{30.5 [27.5, 33.5]} & 27.1 [24.8, 29.5] & 30.2 [27.5, 32.8] \\
+\texttt{plain\_1} & 49.0 [45.9, 52.3] & 33.5 [30.9, 36.2] & \textbf{50.2 [46.9, 53.6]} \\
+\texttt{plain\_2} & 35.1 [32.1, 38.4] & 27.1 [24.8, 29.6] & \textbf{37.6 [34.4, 40.9]} \\
+\texttt{plain\_3} & 25.2 [22.4, 28.1] & 24.8 [22.4, 27.3] & \textbf{29.8 [26.8, 32.6]} \\
+\texttt{fixed\_1} & \textbf{48.9 [45.8, 52.4]} & 33.9 [31.2, 36.5] & 43.2 [39.6, 46.9] \\
+\texttt{plain\_1\_hot} & 40.4 [37.2, 43.6] & 30.8 [28.1, 33.5] & \textbf{43.5 [40.2, 46.9]} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The largest observed reduction occurs when answers are rewritten by relay
+models. The best adaptive accuracy falls from 92.1\% on \cond{direct} to
+40.4\% on \cond{nodes\_1}, 35.6\% on \cond{nodes\_2}, and 30.5\% on
+\cond{nodes\_3}. Plain rewriting also improves with hop count: 50.2\%,
+37.6\%, and 29.8\%. These summaries select the best attacker separately for
+each condition; the paired tests below hold the attacker fixed.
+
+\clearpage
+\section{Hypothesis tests and interpretation}
+Differences below are percentage points, with paired 95\% CIs. H13 instead
+reports an accuracy and its CI. ``Supported'' follows the protocol's stated
+rule; ``not supported'' does not establish that an effect is absent.
+\begin{center}
+\small
+\begin{tabular}{llrl}
+\toprule
+Test & Comparison & Estimate [95\% CI] & Verdict \\
+\midrule
+H7 & A3 minus A1 on nodes 3 & -0.25 [-3.38, +3.00] & Not supported \\
+H8 & A1: full minus half training data on nodes 3 & +1.87 [-1.00, +4.63] & Not supported \\
+H9 (1) & Nodes 1 minus plain 1, A3 & -9.87 [-13.87, -6.00] & Not supported \\
+H9 (2) & Nodes 2 minus plain 2, A3 & -2.00 [-5.63, +1.75] & Supported \\
+H9 (3) & Nodes 3 minus plain 3, A3 & +0.50 [-3.50, +4.50] & Supported \\
+H10 & Plain 3 minus plain 1, A3 & -20.50 [-24.50, -16.62] & Supported \\
+H11 & Fixed 1 minus plain 1, A1 & -0.12 [-4.25, +3.75] & Not supported \\
+H12 & Hot plain 1 minus plain 1, A3 & -6.75 [-10.50, -3.00] & Supported \\
+H13 & Nodes 3 accuracy above chance, A1 & 30.50 [27.62, 33.50] & Supported \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Persona framing.} With A3 held fixed, the persona chain has 9.88 points
+lower attribution after one hop than the plain chain (CI $-13.87$ to $-6.00$).
+Thus H9's prediction of no detectable difference fails at one hop. The two-
+and three-hop differences include zero. H9 is recorded as supported there
+under the protocol's rule, but this is not an equivalence test: the three-hop
+CI still permits effects from $-3.50$ to $+4.50$ points.
+
+\textbf{More hops.} Three plain rewrites lower A3 accuracy by 20.50 points
+relative to one rewrite (CI $-24.50$ to $-16.63$), supporting H10. The three-hop
+plain and persona chains have similar observed performance against A3
+(29.75\% and 30.25\%).
+
+\textbf{Fixed rewriter and temperature.} The paired fixed-versus-random test
+uses A1: the difference is $-0.12$ points (CI $-4.25$ to $+3.75$), so H11 is
+not supported. Using temperature 1.2 lowers A3 one-hop accuracy by 6.75 points
+(CI $-10.50$ to $-3.00$), supporting H12. The fixed-rewriter conclusion applies
+to the tested Meta model and this data.
+
+\textbf{Attacker strength and training size.} A3 does not clearly outperform
+A1 on \cond{nodes\_3}: the difference is $-0.25$ points (CI $-3.38$ to
+$+3.00$). Doubling A1's training data from half to all available prompts yields
+$+1.87$ points (CI $-1.00$ to $+4.63$). H7 and H8 are not supported. The latter
+does not prove saturation or rule out improvement with substantially more data.
+
+\textbf{Residual leakage.} H13 is supported: the separately resampled CI for
+A1 on \cond{nodes\_3} is 27.63--33.50\%, wholly above 20\% chance. This CI
+and the main table's 27.5--33.5\% interval use separate bootstrap draws for
+the same 30.5\% estimate.
+
+\clearpage
+\section{Similarity, length, and remaining signal}
+Utility is the mean cosine similarity of the final text to $Z$'s plain answer,
+using nomic embeddings. It is a proxy for answer similarity, not a measure of
+correctness or complete fact preservation. Word counts are means rounded to
+the nearest word.
+\begin{center}
+\small
+\begin{tabular}{lrr}
+\toprule
+Condition & Mean cosine & Mean words \\
+\midrule
+\texttt{direct} & 1.000 & 247 \\
+\texttt{persona\_fwd} & 0.891 & 165 \\
+\texttt{nodes\_1} & 0.880 & 139 \\
+\texttt{nodes\_2} & 0.874 & 126 \\
+\texttt{nodes\_3} & 0.869 & 122 \\
+\texttt{plain\_1} & 0.952 & 199 \\
+\texttt{plain\_2} & 0.933 & 174 \\
+\texttt{plain\_3} & 0.918 & 160 \\
+\texttt{fixed\_1} & 0.953 & 174 \\
+\texttt{plain\_1\_hot} & 0.924 & 212 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The saved reference similarity between two different models answering the
+same prompt is 0.917; the saved same-model resampling reference is 0.954.
+These are descriptive reference values, not hard bounds on utility.
+
+At three hops, plain rewriting has higher mean cosine (0.918 versus 0.869)
+and longer answers (160 versus 122 words) than the persona chain. Both shorten
+answers relative to the 247-word direct baseline. No confidence intervals or
+task-level tests were saved for these utility comparisons, so the observed
+similarity difference should not be described as a tested correctness benefit.
+
+Leakage is uneven across source models. With A1 on \cond{nodes\_3}, Mistral is
+identified in 87 of 160 cases (54.4\%); Meta, Google, Alibaba, and Microsoft
+are identified at 28.8\%, 21.3\%, 21.9\%, and 26.2\%, respectively. For
+\cond{plain\_3}, A3's corresponding rates are 29.4\%, 38.8\%, 15.6\%,
+35.6\%, and 29.4\%. These are descriptive row accuracies without per-model CIs.
+Different strongest attackers are used for the two matrices, so this breakdown
+is not a paired test of persona effects for individual models.
+
+\section{Practical conclusions and limits}
+Three model rewrites greatly reduce source attribution in this local-model
+experiment. Plain three-hop rewriting is a useful simpler design: its tested
+adaptive performance is similar to the persona chain, with higher observed
+answer similarity and length. Persona framing helps at one hop but has no
+clearly detected advantage after two or three hops.
+
+The results do not establish anonymity: three-hop attribution remains above
+chance. The study covers five small local models, a finite prompt set, and
+three attacker families. Frontier models, stronger attacks, larger training
+sets, refusals, and content-based cues may behave differently. Provider
+visibility, traffic analysis, timing, watermark robustness, and cryptographic
+privacy guarantees are outside the evaluated threat model. The remaining
+signal's cause cannot be determined from these classifiers alone.
+
+\section{Source artifacts and verification}
+All numeric tables are transcribed from \path{experiments/data/results_v2.json}.
+The protocol is \path{experiments/PROTOCOL_v2.md}; implementation is
+\path{experiments/analyze_v2.py}; predictions and raw calls are in
+\path{experiments/data/preds_v2.json} and \path{experiments/data/calls.jsonl}.
+The completed run is recorded in \path{experiments/data/analyze_v2.log}.
+
+As a separate software check, \path{tests/test_blackbox.py} was rerun with
+\texttt{python -m pytest -q -p no:cacheprovider}: 11 tests passed. These mock
+backend tests verify program behavior; they do not validate the real-model
+anonymity or answer correctness claims.
+
+\clearpage
+\appendix
+\section{Static attackers}
+Each attacker is trained on direct answers only. Values are percentages with
+95\% prompt-bootstrap CIs. The direct baseline appears in the adaptive table
+because its training and test condition are already the same.
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Condition & A1: TF-IDF & A2: embeddings & A3: ModernBERT \\
+\midrule
+\texttt{persona\_fwd} & 63.7 [60.9, 66.6] & 34.8 [32.1, 37.5] & 52.5 [49.5, 55.6] \\
+\texttt{nodes\_1} & 33.0 [30.4, 35.6] & 26.6 [24.4, 29.0] & 28.9 [26.5, 31.3] \\
+\texttt{nodes\_2} & 28.4 [25.8, 30.9] & 24.4 [22.5, 26.4] & 25.6 [23.6, 27.6] \\
+\texttt{nodes\_3} & 25.8 [23.1, 28.2] & 22.2 [20.6, 23.9] & 24.4 [22.2, 26.5] \\
+\texttt{plain\_1} & 42.8 [39.4, 46.0] & 33.2 [30.6, 36.0] & 43.8 [40.5, 47.1] \\
+\texttt{plain\_2} & 33.9 [30.8, 36.9] & 28.6 [26.1, 31.1] & 32.9 [30.1, 35.6] \\
+\texttt{plain\_3} & 28.2 [25.4, 31.2] & 25.2 [23.1, 27.5] & 27.5 [25.0, 30.1] \\
+\texttt{fixed\_1} & 41.5 [38.9, 44.1] & 32.8 [30.4, 35.2] & 36.8 [34.2, 39.4] \\
+\texttt{plain\_1\_hot} & 37.9 [34.5, 41.1] & 31.4 [28.7, 34.0] & 39.9 [37.2, 42.6] \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Predictions naming the last relay}
+The rate is the percentage of predictions naming the final rewrite lab,
+restricted to units where that lab differs from $Z$. It describes recognition
+of the relay's voice, not correct recognition of the source. Percentages below
+are rounded to one decimal; no CIs for these rates were saved.
+\begin{center}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Condition & A1 adapt. & A2 adapt. & A3 adapt. & A1 static & A2 static & A3 static \\
+\midrule
+\texttt{nodes\_1} & 27.4 & 20.4 & 28.3 & 41.3 & 24.5 & 37.0 \\
+\texttt{nodes\_2} & 24.7 & 18.2 & 25.8 & 35.0 & 24.1 & 30.8 \\
+\texttt{nodes\_3} & 22.4 & 20.2 & 22.8 & 36.2 & 23.0 & 29.6 \\
+\texttt{plain\_1} & 22.9 & 21.5 & 24.0 & 47.1 & 26.9 & 35.3 \\
+\texttt{plain\_2} & 24.4 & 20.5 & 19.6 & 42.1 & 24.4 & 30.5 \\
+\texttt{plain\_3} & 26.0 & 19.7 & 21.8 & 41.0 & 26.3 & 32.6 \\
+\texttt{fixed\_1} & 12.0 & 17.5 & 10.3 & 60.6 & 29.4 & 50.9 \\
+\texttt{plain\_1\_hot} & 20.9 & 19.0 & 18.6 & 51.7 & 32.0 & 35.1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For example, on \cond{nodes\_3}, A1's static last-relay prediction rate is
+36.2\%, compared with 22.4\% for adaptive A1. The fixed Meta rewrite yields
+60.6\% for static A1, while its adaptive rate is 12.0\%. The exclusion of
+units where the last lab is $Z$ is essential to interpreting these rates.
+
+\clearpage
+\section{Training-data learning curves}
+Fractions refer to the 128 training prompts in each outer fold. The 25\%,
+50\%, and 100\% settings use 32, 64, and 128 prompts (160, 320, and 640
+training texts), respectively. All settings test on the same held-out prompts.
+Values are percentages with 95\% CIs; the full-data curve intervals can differ
+slightly from the main table because of separate bootstrap draws.
+\begin{center}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Condition & Attacker & 25\% training & 50\% training & 100\% training \\
+\midrule
+\texttt{direct} & A1 & 82.1 [79.0, 85.1] & 88.6 [86.2, 90.9] & 92.1 [89.9, 94.2] \\
+\texttt{nodes\_3} & A1 & 28.4 [25.8, 30.9] & 28.6 [26.1, 31.5] & 30.5 [27.5, 33.5] \\
+\texttt{plain\_3} & A1 & 23.9 [21.2, 26.4] & 25.0 [22.2, 27.9] & 25.2 [22.5, 28.0] \\
+\texttt{nodes\_3} & A3 & 26.1 [23.8, 28.5] & 29.2 [26.6, 31.9] & 30.2 [27.8, 32.9] \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The direct A1 baseline rises from 82.1\% to 92.1\% with additional training
+prompts. On the three-hop persona chain, the corresponding A1 curve is
+28.4\%, 28.6\%, and 30.5\%; A3 is 26.1\%, 29.2\%, and 30.2\%.
+Only the specified H8 full-versus-half comparison is reported as a hypothesis
+test; these other curve differences are descriptive.
+
+\section{Saved confusion matrices}
+Rows are the true source model and columns the predicted model. Each row sums
+to 160 cases. The matrices use the best adaptive attacker for their condition.
+M = Meta, G = Google, A = Alibaba, P = Microsoft/Phi, R = Mistral.
+\subsection*{\texttt{direct} (A1)}
+\begin{center}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+True source & M & G & A & P & R \\
+\midrule
+Meta & 155 & 2 & 1 & 0 & 2 \\
+Google & 4 & 146 & 4 & 3 & 3 \\
+Alibaba & 9 & 3 & 131 & 0 & 17 \\
+Microsoft & 1 & 0 & 2 & 155 & 2 \\
+Mistral & 1 & 1 & 7 & 1 & 150 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection*{\texttt{nodes\_3} (A1)}
+\begin{center}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+True source & M & G & A & P & R \\
+\midrule
+Meta & 46 & 27 & 29 & 35 & 23 \\
+Google & 27 & 34 & 29 & 29 & 41 \\
+Alibaba & 38 & 31 & 35 & 30 & 26 \\
+Microsoft & 33 & 24 & 32 & 42 & 29 \\
+Mistral & 23 & 15 & 18 & 17 & 87 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\clearpage
+\section*{Confusion matrices (continued)}
+\subsection*{\texttt{plain\_3} (A3)}
+\begin{center}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+True source & M & G & A & P & R \\
+\midrule
+Meta & 47 & 27 & 17 & 38 & 31 \\
+Google & 16 & 62 & 12 & 25 & 45 \\
+Alibaba & 29 & 31 & 25 & 40 & 35 \\
+Microsoft & 30 & 21 & 20 & 57 & 32 \\
+Mistral & 28 & 39 & 18 & 28 & 47 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection*{\texttt{fixed\_1} (A1)}
+\begin{center}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+True source & M & G & A & P & R \\
+\midrule
+Meta & 67 & 30 & 24 & 18 & 21 \\
+Google & 13 & 96 & 18 & 15 & 18 \\
+Alibaba & 30 & 26 & 47 & 18 & 39 \\
+Microsoft & 8 & 20 & 12 & 108 & 12 \\
+Mistral & 26 & 24 & 26 & 11 & 73 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{document}

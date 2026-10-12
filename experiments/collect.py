@@ -81,7 +81,8 @@ async def run_jobs(jobs: list[dict], cache: dict[str, dict]) -> None:
                         try:
                             r = await client.post(URL, json={
                                 "model": LABS[lab_key].model,
-                                "messages": [{"role": "user", "content": j["prompt"]}], **GEN})
+                                "messages": [{"role": "user", "content": j["prompt"]}],
+                                **GEN, **({"temperature": j["temperature"]} if "temperature" in j else {})})
                             r.raise_for_status()
                             out = r.json()["choices"][0]["message"]["content"].strip()
                             break
